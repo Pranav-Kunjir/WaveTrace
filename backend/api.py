@@ -1,5 +1,6 @@
 from fastapi import FastAPI, File, UploadFile
 import os
+import shutil
 from check_song import match_song
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
@@ -9,7 +10,13 @@ from pathlib import Path
 from os import getenv
 app = FastAPI()
 
-DATABASE_PATH = Path(__file__).resolve().parent / "example.db"
+DATA_DIR = Path(getenv("WAVETRACE_DATA_DIR", Path(__file__).resolve().parent))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATABASE_PATH = DATA_DIR / "example.db"
+BUNDLED_DATABASE_PATH = Path(__file__).resolve().parent / "example.db"
+
+if not DATABASE_PATH.exists() and BUNDLED_DATABASE_PATH.exists():
+    shutil.copy2(BUNDLED_DATABASE_PATH, DATABASE_PATH)
 
 app.add_middleware(
     CORSMiddleware,
@@ -54,7 +61,7 @@ async def upload_audio(file: UploadFile = File(...)):
     audio_bytes = await file.read()
     
     # Example: Optional step to save the file locally
-    save_path = Path(__file__).resolve().parent / f"saved_{uuid.uuid4()}.wav"
+    save_path = DATA_DIR / f"saved_{uuid.uuid4()}.wav"
     with open(save_path, "wb") as f:
         f.write(audio_bytes)
 

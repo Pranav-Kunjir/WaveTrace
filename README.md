@@ -20,3 +20,17 @@ are allowed by CORS:
 ```text
 FRONTEND_URL=https://your-app.vercel.app
 ```
+
+## Deploy the backend on Render
+
+Create a Render Web Service from this repository. Render can use the root
+`render.yaml` blueprint, or configure the service manually with `backend` as
+the root directory:
+
+```text
+Build command: pip install -r requirements.txt
+Start command: uvicorn api:app --host 0.0.0.0 --port $PORT
+```
+
+The blueprint mounts a persistent disk at `/var/data` and seeds it from the
+tracked database on first startup. Set `FRONTEND_URL` to the Vercel URL.
