@@ -1,3 +1,6 @@
+import hashlib
+from pathlib import Path
+
 import torch
 import scipy
 import torchaudio 
@@ -27,7 +30,6 @@ class Process_audio:
         self.waveform = torchaudio.functional.lowpass_biquad(self.waveform,self.sr,cutoff)
         return self.waveform
     def resample(self):
-        self.waveform = self.low_pass_filter_tensor(5000)
         resample_rate = 11025 
         resampled_waveform = F.resample(
             self.waveform,
@@ -38,8 +40,10 @@ class Process_audio:
             resampling_method="sinc_interp_kaiser",
             beta=8.555504641634386,
         )
-        torchaudio.save(f"resampled-{self.filename[2:]}", resampled_waveform,resample_rate)
-        self.resampled_filename = f"resampled-{self.filename[2:]}"
+        source_path = Path(self.filename)
+        output_path = source_path.with_name(f"resampled-{source_path.name}")
+        torchaudio.save(str(output_path), resampled_waveform, resample_rate)
+        self.resampled_filename = str(output_path)
         return self.resampled_filename
 
     def visualize_data(self,audiofiles):
@@ -134,7 +138,14 @@ class Process_audio:
         for i in range(0,len(peaks)-target_zone):
             for j in range(1,target_zone):
                 point = (peaks[i][1],peaks[i+j][1],peaks[i+j][0]-peaks[i][0])
-                hash_id = hash(point)
+                hash_id = int.from_bytes(
+                    hashlib.blake2b(
+                        repr(point).encode("ascii"),
+                        digest_size=8,
+                    ).digest(),
+                    "big",
+                    signed=True,
+                )
                 hashtable.setdefault(hash_id, []).append((peaks[i][0], song_id))
 
 
