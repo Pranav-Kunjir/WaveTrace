@@ -6,6 +6,7 @@ import uuid
 import asyncio
 import sqlite3
 from pathlib import Path
+from os import getenv
 app = FastAPI()
 
 DATABASE_PATH = Path(__file__).resolve().parent / "example.db"
@@ -13,7 +14,8 @@ DATABASE_PATH = Path(__file__).resolve().parent / "example.db"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173"
+        "http://localhost:5173",
+        getenv("FRONTEND_URL", "http://localhost:5173"),
     ],
     allow_credentials=True,
     allow_methods=["*"],
