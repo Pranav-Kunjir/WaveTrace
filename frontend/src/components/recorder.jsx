@@ -1,52 +1,86 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { uploadWavBlob } from "./fetchSong";
-export default function AudioRecorder() {
+
+const RECORDING_DURATION = 12;
+
+export default function AudioRecorder({ onResult, onStatusChange, onError }) {
   const [isRecording, setIsRecording] = useState(false);
-  const [audioUrl, setAudioUrl] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(RECORDING_DURATION);
 
   const audioContextRef = useRef(null);
   const streamRef = useRef(null);
   const sourceRef = useRef(null);
   const processorRef = useRef(null);
   const chunksRef = useRef([]);
+  const timerRef = useRef(null);
+  const stoppingRef = useRef(false);
+
+  useEffect(() => () => {
+    clearInterval(timerRef.current);
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    audioContextRef.current?.close();
+  }, []);
 
   const startRecording = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-    });
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+      const audioContext = new AudioContext();
 
-    const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
 
-    const source =
-      audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
 
-    const processor =
-      audioContext.createScriptProcessor(4096, 1, 1);
+      chunksRef.current = [];
+      stoppingRef.current = false;
 
-    chunksRef.current = [];
+      processor.onaudioprocess = (event) => {
+        const samples = event.inputBuffer.getChannelData(0);
 
-    processor.onaudioprocess = (event) => {
-      const samples =
-        event.inputBuffer.getChannelData(0);
+        chunksRef.current.push(new Float32Array(samples));
+      };
 
-      chunksRef.current.push(
-        new Float32Array(samples)
-      );
-    };
+      source.connect(processor);
+      const silentOutput = audioContext.createGain();
+      silentOutput.gain.value = 0;
+      processor.connect(silentOutput);
+      silentOutput.connect(audioContext.destination);
 
-    source.connect(processor);
-    processor.connect(audioContext.destination);
+      streamRef.current = stream;
+      audioContextRef.current = audioContext;
+      sourceRef.current = source;
+      processorRef.current = processor;
 
-    streamRef.current = stream;
-    audioContextRef.current = audioContext;
-    sourceRef.current = source;
-    processorRef.current = processor;
-
-    setIsRecording(true);
+      setSecondsLeft(RECORDING_DURATION);
+      setIsRecording(true);
+      onStatusChange?.('recording');
+      timerRef.current = setInterval(() => {
+        setSecondsLeft((current) => {
+          if (current <= 1) {
+            stopRecording();
+            return 0;
+          }
+          return current - 1;
+        });
+      }, 1000);
+    } catch {
+      onError?.('Microphone access is needed to identify a song.');
+    }
   };
 
   const stopRecording = async () => {
+    if (stoppingRef.current || !audioContextRef.current) return;
+    stoppingRef.current = true;
+    clearInterval(timerRef.current);
     setIsRecording(false);
+    onStatusChange?.('processing');
 
     processorRef.current?.disconnect();
     sourceRef.current?.disconnect();
@@ -55,50 +89,38 @@ export default function AudioRecorder() {
       track.stop()
     );
 
-    const sampleRate =
-      audioContextRef.current.sampleRate;
+    const sampleRate = audioContextRef.current.sampleRate;
 
     const wavBlob = createWavBlob(
       chunksRef.current,
       sampleRate
     );
 
-    const url = URL.createObjectURL(wavBlob);
-
-    setAudioUrl(url);
-
     await audioContextRef.current.close();
-    let response = await uploadWavBlob(wavBlob);
-    console.log(response)
-
+    try {
+      const response = await uploadWavBlob(wavBlob);
+      onResult?.(response);
+    } catch {
+      onError?.('The song could not be identified. Check that the API is running and try again.');
+    } finally {
+      audioContextRef.current = null;
+      setIsProcessing(false);
+      stoppingRef.current = false;
+    }
   };
 
   return (
-    <div>
-      <button
-        onClick={
-          isRecording
-            ? stopRecording
-            : startRecording
-        }
-      >
-        {isRecording
-          ? "Stop Recording"
-          : "Start Recording"}
+    <div className="recorder">
+      <button className={`listen-button ${isRecording ? 'is-recording' : ''}`} onClick={isRecording ? stopRecording : startRecording} disabled={isRecording || isProcessing}>
+        <span className="listen-ring">
+          <svg className="mic-icon" viewBox="0 0 24 28" aria-hidden="true" focusable="false">
+            <rect x="7" y="2" width="10" height="17" rx="5" />
+            <path d="M3 14a9 9 0 0 0 18 0M12 23v3M8 26h8" />
+          </svg>
+        </span>
+        <span>{isRecording ? 'Listening...' : isProcessing ? 'Finding your song...' : 'Tap to identify'}</span>
       </button>
-
-      {audioUrl && (
-        <div style={{ marginTop: 16 }}>
-          <audio controls src={audioUrl} />
-          <br />
-          <a
-            href={audioUrl}
-            download="recording.wav"
-          >
-            Download WAV
-          </a>
-        </div>
-      )}
+      <div className="recording-status" aria-live="polite">{isRecording ? <><span className="pulse-dot" /> Listening for <strong>{secondsLeft}s</strong></> : isProcessing ? 'Matching your recording' : 'Ready when you are'}</div>
     </div>
   );
 }
