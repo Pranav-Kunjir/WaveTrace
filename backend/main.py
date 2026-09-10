@@ -1,48 +1,56 @@
 import hashlib
+import math
 from pathlib import Path
 
-import torch
 import scipy
-import torchaudio 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import librosa
 import librosa.display
-import torchaudio
+import soundfile as sf
 from scipy import signal
 from scipy.io import wavfile
-import torchaudio.functional as F
 
 
 class Process_audio:
     def __init__(self,filename):
         self.filename = filename
-        self.waveform, self.sr = torchaudio.load(filename)
+        samples, self.sr = sf.read(filename, always_2d=True, dtype="float32")
+        self.waveform = samples.T
         self.resampled_filename = ""
         
 
     def convert_stereo_to_mono(self):
         if self.waveform.shape[0] > 1:
-            self.waveform = torch.mean(self.waveform,dim=0,keepdim=True)
+            self.waveform = np.mean(self.waveform, axis=0, keepdims=True)
         return self.waveform
     def low_pass_filter_tensor(self,cutoff=5000):
-        self.waveform = torchaudio.functional.lowpass_biquad(self.waveform,self.sr,cutoff)
+        filter_sections = signal.butter(
+            6,
+            cutoff,
+            btype="lowpass",
+            fs=self.sr,
+            output="sos",
+        )
+        self.waveform = signal.sosfiltfilt(
+            filter_sections,
+            self.waveform,
+            axis=-1,
+        )
         return self.waveform
     def resample(self):
         resample_rate = 11025 
-        resampled_waveform = F.resample(
+        divisor = math.gcd(self.sr, resample_rate)
+        resampled_waveform = signal.resample_poly(
             self.waveform,
-            self.sr,
-            resample_rate,
-            lowpass_filter_width=16,
-            rolloff=0.85,
-            resampling_method="sinc_interp_kaiser",
-            beta=8.555504641634386,
+            resample_rate // divisor,
+            self.sr // divisor,
+            axis=-1,
         )
         source_path = Path(self.filename)
         output_path = source_path.with_name(f"resampled-{source_path.name}")
-        torchaudio.save(str(output_path), resampled_waveform, resample_rate)
+        sf.write(str(output_path), resampled_waveform.squeeze(0), resample_rate)
         self.resampled_filename = str(output_path)
         return self.resampled_filename
 
