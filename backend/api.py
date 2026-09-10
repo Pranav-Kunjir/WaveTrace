@@ -16,12 +16,20 @@ BUNDLED_DATABASE_PATH = Path(__file__).resolve().parent / "example.db"
 if not DATABASE_PATH.exists() and BUNDLED_DATABASE_PATH.exists():
     shutil.copy2(BUNDLED_DATABASE_PATH, DATABASE_PATH)
 
+configured_origins = getenv("FRONTEND_URL", "http://localhost:5173")
+allowed_origins = [
+    origin.strip().rstrip("/")
+    for origin in configured_origins.split(",")
+    if origin.strip()
+]
+if "http://localhost:5173" not in allowed_origins:
+    allowed_origins.append("http://localhost:5173")
+if "https://wave-trace.vercel.app" not in allowed_origins:
+    allowed_origins.append("https://wave-trace.vercel.app")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        getenv("FRONTEND_URL", "http://localhost:5173"),
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

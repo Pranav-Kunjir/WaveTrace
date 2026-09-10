@@ -18,8 +18,11 @@ the backend variable below to the deployed Vercel URL so microphone requests
 are allowed by CORS:
 
 ```text
-FRONTEND_URL=https://your-app.vercel.app
+FRONTEND_URL=https://wave-trace.vercel.app
 ```
+
+Use the frontend origin only, without a path or trailing slash. Multiple
+origins can be separated with commas when needed.
 
 ## Deploy the backend on Render
 
