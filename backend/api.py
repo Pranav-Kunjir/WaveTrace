@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 import os
 import shutil
 from check_song import match_song
@@ -59,25 +59,27 @@ def get_songs():
 @app.post("/upload-audio")
 async def upload_audio(file: UploadFile = File(...)):
     global idx
-    # 1. Access file metadata
-    filename = file.filename
-    content_type = file.content_type
-    
-    # 2. Read the audio content as bytes
     audio_bytes = await file.read()
-    
-    # Example: Optional step to save the file locally
     save_path = DATA_DIR / f"saved_{uuid.uuid4()}.wav"
-    with open(save_path, "wb") as f:
-        f.write(audio_bytes)
+    resampled_path = save_path.with_name(f"resampled-{save_path.name}")
 
-    song_ids = await asyncio.to_thread(match_song, str(save_path))
-    paths = [save_path, save_path.with_name(f"resampled-{save_path.name}")]
-    for path in paths:
-        if os.path.exists(path):
-            os.remove(path)
-    idx += 1
-    return song_ids
+    try:
+        save_path.write_bytes(audio_bytes)
+        song_ids = await asyncio.to_thread(match_song, str(save_path))
+        idx += 1
+        return song_ids
+    except Exception as error:
+        print(f"Audio matching failed: {error}")
+        raise HTTPException(
+            status_code=500,
+            detail="Audio processing failed. Check the backend logs for details.",
+        ) from error
+    finally:
+        for path in (save_path, resampled_path):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 @app.get("/items/{item_id}")
 def read_item(item_id: int, q: str | None = None):
