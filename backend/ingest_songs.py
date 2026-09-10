@@ -1,18 +1,16 @@
 """Create database fingerprints for WAV files in backend/songs."""
 
 import argparse
-import os
 import sqlite3
 from pathlib import Path
 
 from main import Process_audio
+from storage import DATABASE_PATH
 
 
 BACKEND_DIR = Path(__file__).resolve().parent
 DEFAULT_SONGS_DIR = BACKEND_DIR / "songs"
-DEFAULT_DATABASE = Path(
-    os.getenv("WAVETRACE_DATA_DIR", BACKEND_DIR)
-) / "example.db"
+DEFAULT_DATABASE = DATABASE_PATH
 
 
 def ensure_schema(cursor):

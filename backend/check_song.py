@@ -5,9 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from main import Process_audio
-
-DATA_DIR = Path(os.getenv("WAVETRACE_DATA_DIR", Path(__file__).resolve().parent))
-DATABASE_PATH = DATA_DIR / "example.db"
+from storage import DATABASE_PATH
 
 
 def match_song(audio_file="./untitled.wav"):

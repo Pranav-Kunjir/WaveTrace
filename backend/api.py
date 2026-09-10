@@ -8,11 +8,9 @@ import asyncio
 import sqlite3
 from pathlib import Path
 from os import getenv
+from storage import DATA_DIR, DATABASE_PATH
 app = FastAPI()
 
-DATA_DIR = Path(getenv("WAVETRACE_DATA_DIR", Path(__file__).resolve().parent))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-DATABASE_PATH = DATA_DIR / "example.db"
 BUNDLED_DATABASE_PATH = Path(__file__).resolve().parent / "example.db"
 
 if not DATABASE_PATH.exists() and BUNDLED_DATABASE_PATH.exists():
